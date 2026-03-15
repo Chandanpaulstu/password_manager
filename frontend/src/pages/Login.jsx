@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { deriveKey } from '../crypto/vault'
-import client from '../api/client'
+import client, { getCsrfCookie } from '../api/client'
 
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' })
@@ -10,6 +10,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const { setAuth, setVaultKey } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  const successMessage = location.state?.message
 
   const handle = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }))
 
@@ -19,6 +21,7 @@ export default function Login() {
     setLoading(true)
     try {
       // 1. Login → get token
+      await getCsrfCookie()
       const { data } = await client.post('/auth/login', form)
       setAuth(data.user, data.token)
 
@@ -42,6 +45,12 @@ export default function Login() {
       <div className="w-full max-w-md bg-gray-900 rounded-2xl p-8 shadow-xl border border-gray-800">
         <h1 className="text-2xl font-bold text-white mb-1">Welcome back</h1>
         <p className="text-gray-400 text-sm mb-6">Unlock your vault</p>
+
+        {successMessage && (
+          <div className="bg-green-500/10 border border-green-500/30 text-green-400 text-sm rounded-lg px-4 py-3 mb-4">
+            {successMessage}
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg px-4 py-3 mb-4">

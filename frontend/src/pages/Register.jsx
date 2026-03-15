@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import client from '../api/client'
+import client, { getCsrfCookie } from '../api/client'
 
 export default function Register() {
   const [form, setForm] = useState({
@@ -35,8 +35,9 @@ export default function Register() {
     }
     setLoading(true)
     try {
+      await getCsrfCookie()
       await client.post('/auth/register', form)
-      navigate('/login')
+      navigate('/login', { state: { message: 'Account created! Please log in.' } })
     } catch (err) {
       const errors = err.response?.data?.errors
       if (errors) {

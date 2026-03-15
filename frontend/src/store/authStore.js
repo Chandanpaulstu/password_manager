@@ -3,7 +3,7 @@ import { create } from 'zustand'
 export const useAuthStore = create((set) => ({
   user: null,
   token: localStorage.getItem('vault_token') || null,
-  vaultKey: null, // CryptoKey — never leaves memory
+  vaultKey: null,
 
   setAuth: (user, token) => {
     localStorage.setItem('vault_token', token)

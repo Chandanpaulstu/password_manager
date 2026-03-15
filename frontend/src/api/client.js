@@ -9,14 +9,14 @@ const client = axios.create({
   }
 })
 
-// Auto attach token from localStorage
+// Auto attach token
 client.interceptors.request.use(config => {
   const token = localStorage.getItem('vault_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
-// Global 401 handler
+// 401 handler
 client.interceptors.response.use(
   res => res,
   err => {
@@ -27,5 +27,10 @@ client.interceptors.response.use(
     return Promise.reject(err)
   }
 )
+
+export const getCsrfCookie = () =>
+  axios.get('http://localhost:8000/sanctum/csrf-cookie', {
+    withCredentials: true
+  })
 
 export default client
