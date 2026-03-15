@@ -8,8 +8,9 @@ const CATEGORY_ICON = { login: '🔑', card: '💳', note: '📝', identity: '�
 function Row({ label, value, onCopy, mask, canToggleMask = false }) {
   const [copied, setCopied] = useState(false)
   const [visible, setVisible] = useState(false)
-  const handleCopy = () => {
-    onCopy(value)
+  const handleCopy = async () => {
+    const ok = await onCopy(value)
+    if (!ok) return
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -77,8 +78,12 @@ export default function VaultCard({ entry, onEdit, onDelete }) {
   }
 
   const copy = useCallback(async (text) => {
-    await navigator.clipboard.writeText(text)
-    setTimeout(() => navigator.clipboard.writeText(''), 30000)
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch {
+      return false
+    }
   }, [])
 
   const viewBtnClass = expanded

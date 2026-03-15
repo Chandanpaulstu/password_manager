@@ -59,10 +59,13 @@ export default function Generator() {
   }, [length, opts])
 
   const copy = async (text) => {
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-    setTimeout(() => navigator.clipboard.writeText(''), 30000)
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
+    }
   }
 
   const toggle = key => setOpts(p => ({ ...p, [key]: !p[key] }))

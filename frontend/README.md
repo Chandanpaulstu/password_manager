@@ -1,39 +1,16 @@
-# Frontend App (React + Vite)
+# React + Vite
 
-Client application for the zero-knowledge password manager.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Setup
+Currently, two official plugins are available:
 
-```bash
-npm install
-npm run dev
-```
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-Dev server default: `http://localhost:5173`
+## React Compiler
 
-## Environment Expectations
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-- Backend API should run on `http://localhost:8000`
-- Axios client is configured to send cookies and bearer token headers
+## Expanding the ESLint configuration
 
-## Core Flows
-
-- Register and login with CSRF preflight call before POST requests
-- Registration success message is shown on the login screen after redirect
-- Vault unlock derives crypto key from master password + server-provided salt
-- Vault entries are encrypted/decrypted in-browser
-
-## Vault UX Highlights
-
-- Category-specific forms: login, card, note, identity
-- Card inputs use stable formatting:
-	- Number grouped in 4-digit chunks
-	- Expiry auto-formatted as `MM/YY`
-	- CVV restricted to digits
-- View mode supports masked password with Show/Hide toggle
-- Edit flow loads full encrypted entry before rendering editable state to avoid input reset races
-
-## Branding
-
-- Browser tab title: `Password Manager`
-- Custom app icon: `public/app-icon.svg`
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
