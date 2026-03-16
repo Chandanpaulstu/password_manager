@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useVaultEntries, useCreateEntry, useUpdateEntry, useDeleteEntry } from '../hooks/useVault'
 import VaultCard from '../components/ui/VaultCard'
 import VaultModal from '../components/ui/VaultModal'
 import { useAuthStore } from '../store/authStore'
-import { deriveKey } from '../crypto/vault'
+import { deriveKey, decryptTitle } from '../crypto/vault'
 import client from '../api/client'
 
 export default function Vault() {
@@ -13,14 +13,29 @@ export default function Vault() {
   const updateEntry = useUpdateEntry()
   const deleteEntry = useDeleteEntry()
 
-  const [modal, setModal] = useState(false)
+  const [modal, setModal]     = useState(false)
   const [editing, setEditing] = useState(null)
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter]   = useState('all')
+  const [search, setSearch]   = useState('')
+
+  // Decrypted titles map: { [entry.id]: string }
+  const [titles, setTitles] = useState({})
 
   // Unlock state
   const [masterPassword, setMasterPassword] = useState('')
-  const [keyError, setKeyError] = useState('')
-  const [keyLoading, setKeyLoading] = useState(false)
+  const [keyError, setKeyError]             = useState('')
+  const [keyLoading, setKeyLoading]         = useState(false)
+
+  // Decrypt all titles when entries or key change
+  useEffect(() => {
+    if (!vaultKey || !entries.length) return
+    entries.forEach(entry => {
+      if (titles[entry.id]) return // already decrypted
+      decryptTitle(vaultKey, entry.title_encrypted)
+        .then(t => setTitles(prev => ({ ...prev, [entry.id]: t })))
+        .catch(() => setTitles(prev => ({ ...prev, [entry.id]: '(error)' })))
+    })
+  }, [vaultKey, entries])
 
   const unlockVault = async (e) => {
     e.preventDefault()
@@ -38,24 +53,33 @@ export default function Vault() {
     }
   }
 
-  const openEdit  = async (entry) => {
+  const openEdit = async (entry) => {
     const { data: fullEntry } = await client.get(`/vault/${entry.id}`)
     setEditing(fullEntry)
     setModal(true)
   }
-  const openNew   = () => { setEditing(null); setModal(true) }
+  const openNew    = () => { setEditing(null); setModal(true) }
   const closeModal = () => { setModal(false); setEditing(null) }
 
   const handleDelete = async (id) => {
     if (confirm('Delete this entry? This cannot be undone.')) {
       await deleteEntry.mutateAsync(id)
+      setTitles(prev => { const n = { ...prev }; delete n[id]; return n })
     }
   }
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return entries
-    return entries.filter(e => e.category === filter)
-  }, [entries, filter])
+    let result = entries
+    if (filter !== 'all') result = result.filter(e => e.category === filter)
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(e => {
+        const t = titles[e.id] || ''
+        return t.toLowerCase().includes(q) || e.category.includes(q)
+      })
+    }
+    return result
+  }, [entries, filter, search, titles])
 
   // Vault locked screen
   if (!vaultKey) {
@@ -67,26 +91,22 @@ export default function Vault() {
             <h2 className="text-lg font-bold text-white mt-3">Vault Locked</h2>
             <p className="text-gray-500 text-sm mt-1">Enter your master password to unlock</p>
           </div>
-
           {keyError && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg px-4 py-3 mb-4">
               {keyError}
             </div>
           )}
-
           <form onSubmit={unlockVault} className="space-y-3">
             <input
               type="password"
               value={masterPassword}
               onChange={e => setMasterPassword(e.target.value)}
-              required
-              autoFocus
+              required autoFocus
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition"
               placeholder="Master password"
             />
             <button
-              type="submit"
-              disabled={keyLoading}
+              type="submit" disabled={keyLoading}
               className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition text-sm"
             >
               {keyLoading ? 'Unlocking...' : 'Unlock Vault'}
@@ -115,6 +135,17 @@ export default function Vault() {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search vault..."
+          className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 transition placeholder-gray-600"
+        />
+      </div>
+
       {/* Category filter tabs */}
       <div className="flex gap-2 mb-5 flex-wrap">
         {['all', 'login', 'card', 'note', 'identity'].map(cat => (
@@ -127,7 +158,10 @@ export default function Vault() {
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
             }`}
           >
-            {cat === 'all' ? 'All' : cat === 'login' ? '🔑 Login' : cat === 'card' ? '💳 Card' : cat === 'note' ? '📝 Note' : '🪪 Identity'}
+            {cat === 'all' ? 'All' :
+             cat === 'login' ? '🔑 Login' :
+             cat === 'card' ? '💳 Card' :
+             cat === 'note' ? '📝 Note' : '🪪 Identity'}
           </button>
         ))}
       </div>
@@ -139,13 +173,10 @@ export default function Vault() {
         <div className="text-center py-20">
           <span className="text-5xl">🔒</span>
           <p className="text-gray-500 text-sm mt-4">
-            {filter === 'all' ? 'No entries yet.' : `No ${filter} entries.`}
+            {search ? `No results for "${search}"` : filter === 'all' ? 'No entries yet.' : `No ${filter} entries.`}
           </p>
-          {filter === 'all' && (
-            <button
-              onClick={openNew}
-              className="mt-3 text-violet-400 text-sm hover:underline"
-            >
+          {!search && filter === 'all' && (
+            <button onClick={openNew} className="mt-3 text-violet-400 text-sm hover:underline">
               Add your first entry
             </button>
           )}
@@ -156,6 +187,7 @@ export default function Vault() {
             <VaultCard
               key={entry.id}
               entry={entry}
+              decryptedTitle={titles[entry.id]}
               onEdit={openEdit}
               onDelete={handleDelete}
             />
@@ -163,7 +195,6 @@ export default function Vault() {
         </div>
       )}
 
-      {/* Modal */}
       {modal && (
         <VaultModal
           entry={editing}

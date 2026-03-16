@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useAuthStore } from '../../store/authStore'
-import { decryptData, decryptTitle } from '../../crypto/vault'
+import { decryptData } from '../../crypto/vault'
 import client from '../../api/client'
 
 const CATEGORY_ICON = { login: '🔑', card: '💳', note: '📝', identity: '🪪' }
@@ -8,29 +8,29 @@ const CATEGORY_ICON = { login: '🔑', card: '💳', note: '📝', identity: '�
 function Row({ label, value, onCopy, mask, canToggleMask = false }) {
   const [copied, setCopied] = useState(false)
   const [visible, setVisible] = useState(false)
+
   const handleCopy = async () => {
     const ok = await onCopy(value)
     if (!ok) return
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
-  const shouldMask = mask && !visible
 
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-xs text-gray-500 w-24 shrink-0">{label}</span>
       <div className="flex items-center gap-2 flex-1 justify-end">
-        <span className="text-xs text-gray-300 font-mono truncate max-w-[180px]">{shouldMask ? '••••••••' : value}</span>
+        <span className="text-xs text-gray-300 font-mono truncate max-w-[180px]">
+          {mask && !visible ? '••••••••' : value}
+        </span>
         {canToggleMask && mask && (
-          <button
-            type="button"
-            onClick={() => setVisible(v => !v)}
-            className="text-xs text-gray-400 hover:text-white shrink-0 transition"
-          >
+          <button type="button" onClick={() => setVisible(v => !v)} className="text-xs text-gray-400 hover:text-white shrink-0 transition">
             {visible ? 'Hide' : 'Show'}
           </button>
         )}
-        <button onClick={handleCopy} className="text-xs text-violet-400 hover:text-violet-300 shrink-0 transition">{copied ? '✓' : 'Copy'}</button>
+        <button onClick={handleCopy} className="text-xs text-violet-400 hover:text-violet-300 shrink-0 transition">
+          {copied ? '✓' : 'Copy'}
+        </button>
       </div>
     </div>
   )
@@ -45,30 +45,27 @@ function UrlRow({ url }) {
   )
 }
 
-export default function VaultCard({ entry, onEdit, onDelete }) {
+export default function VaultCard({ entry, decryptedTitle, onEdit, onDelete }) {
   const { vaultKey } = useAuthStore()
-  const [plain, setPlain] = useState(null)
-  const [title, setTitle] = useState('Decrypting...')
-  const [expanded, setExpanded] = useState(false)
+  const [plain, setPlain]           = useState(null)
+  const [expanded, setExpanded]     = useState(false)
   const [decrypting, setDecrypting] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError]           = useState(false)
 
-  useEffect(() => {
-    if (!vaultKey) return
-    decryptTitle(vaultKey, entry.title_encrypted)
-      .then(setTitle)
-      .catch(() => setTitle('(decrypt error)'))
-  }, [entry, vaultKey])
+  // Title comes from parent (Vault.jsx decrypts all titles upfront)
+  const title = decryptedTitle || 'Decrypting...'
 
   const handleView = async () => {
     if (expanded) { setExpanded(false); return }
     if (!plain) {
       setDecrypting(true)
+      setError(false)
       try {
         const { data: fullEntry } = await client.get(`/vault/${entry.id}`)
         const data = await decryptData(vaultKey, fullEntry.data_encrypted, fullEntry.iv)
         setPlain(data)
-      } catch {
+      } catch (err) {
+        console.error('[VaultCard] decrypt failed:', err.message)
         setError(true)
       } finally {
         setDecrypting(false)
@@ -80,6 +77,7 @@ export default function VaultCard({ entry, onEdit, onDelete }) {
   const copy = useCallback(async (text) => {
     try {
       await navigator.clipboard.writeText(text)
+      setTimeout(() => navigator.clipboard.writeText(''), 30000)
       return true
     } catch {
       return false
@@ -115,7 +113,7 @@ export default function VaultCard({ entry, onEdit, onDelete }) {
 
       {expanded && (
         <div className="mt-3 pt-3 border-t border-gray-800">
-          {error && <p className="text-xs text-red-400">Failed to decrypt entry.</p>}
+          {error && <p className="text-xs text-red-400">Failed to decrypt entry. Try locking and unlocking your vault.</p>}
           {plain && (
             <div className="space-y-0.5">
               {entry.category === 'login' && (
@@ -128,9 +126,9 @@ export default function VaultCard({ entry, onEdit, onDelete }) {
               {entry.category === 'card' && (
                 <>
                   {plain.cardholder && <Row label="Cardholder" value={plain.cardholder} onCopy={copy} />}
-                  {plain.number && <Row label="Number" value={plain.number} onCopy={copy} mask />}
+                  {plain.number && <Row label="Number" value={plain.number} onCopy={copy} mask canToggleMask />}
                   {plain.expiry && <Row label="Expiry" value={plain.expiry} onCopy={copy} />}
-                  {plain.cvv && <Row label="CVV" value={plain.cvv} onCopy={copy} mask />}
+                  {plain.cvv && <Row label="CVV" value={plain.cvv} onCopy={copy} mask canToggleMask />}
                 </>
               )}
               {entry.category === 'identity' && (

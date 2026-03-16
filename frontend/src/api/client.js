@@ -29,7 +29,7 @@ client.interceptors.response.use(
 )
 
 export const getCsrfCookie = () =>
-  axios.get('http://localhost:8000/sanctum/csrf-cookie', {
+  axios.get(`${import.meta.env.VITE_API_BASE}/sanctum/csrf-cookie`, {
     withCredentials: true
   })
 
