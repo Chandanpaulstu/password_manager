@@ -1,19 +1,26 @@
 # Zero-Knowledge Password Manager
 
-Full-stack password manager built with Laravel 12 (API) and React + Vite (frontend).
+A full-stack password manager with client-side encryption.
 
-## Architecture
+- Backend: Laravel 12 API + Sanctum
+- Frontend: React 19 + Vite + TanStack Query + Zustand
+- Crypto model: browser-side encryption/decryption (AES-GCM) with a key derived from the master password
 
-- Backend: Laravel 12 API with Sanctum token auth
-- Frontend: React + Vite + TanStack Query + Zustand
-- Crypto model: client-side AES-GCM encryption/decryption using a key derived from the master password
+The API stores encrypted payloads and metadata only. Secrets are encrypted in the browser before upload.
 
-The backend stores encrypted blobs and metadata only. Secret fields are encrypted in the browser before upload.
+## Project Structure
 
-## Repository Structure
+- `backend/`: Laravel API, auth, vault CRUD, migrations
+- `frontend/`: React SPA, vault UI, crypto helpers, API client
 
-- `backend/`: Laravel API server, auth, vault CRUD
-- `frontend/`: React app, vault UI, browser crypto helpers
+## Features
+
+- User registration and login
+- Sanctum-protected API routes
+- Vault entry CRUD (encrypted fields)
+- Category-based entries (login, card, note, identity)
+- Per-entry decrypt/view flow in the client
+- Master-password-based key derivation in browser memory
 
 ## Prerequisites
 
@@ -21,52 +28,113 @@ The backend stores encrypted blobs and metadata only. Secret fields are encrypte
 - Composer
 - Node.js 20+
 - npm
-- MySQL or PostgreSQL
+- A database engine supported by Laravel
 
-## Quick Start
+Note: Default Laravel config in `backend/.env.example` uses SQLite, so you can start quickly without MySQL/PostgreSQL.
 
-1. Backend setup
+## Quick Start (Local)
+
+### 1) Start the backend
 
 ```bash
 cd backend
-cp .env.example .env
 composer install
+cp .env.example .env
 php artisan key:generate
 php artisan migrate
 php artisan serve
 ```
 
-2. Frontend setup
+Backend runs at `http://localhost:8000`.
+
+Alternative one-command bootstrap:
+
+```bash
+cd backend
+composer run setup
+php artisan serve
+```
+
+### 2) Start the frontend
 
 ```bash
 cd frontend
 npm install
+```
+
+Create `frontend/.env`:
+
+```env
+VITE_API_BASE=http://localhost:8000
+```
+
+Run frontend:
+
+```bash
 npm run dev
 ```
 
-3. Open app
+Frontend runs at `http://localhost:5173`.
 
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8000`
+## Authentication + API Notes
 
-## Current Features
+- Frontend uses `withCredentials: true` for cookie-based CSRF/session flow where required.
+- CSRF preflight call: `/sanctum/csrf-cookie`
+- Bearer token is stored in `localStorage` under `vault_token` and attached by Axios interceptor.
 
-- Register/login with Sanctum token flow
-- CSRF preflight for auth POST requests
-- Master-password vault unlock to derive in-memory key
-- Encrypted vault entry create/read/update/delete
-- Category-specific vault forms: login, card, note, identity
-- Entry list with per-item view/decrypt flow
-- Login success message after registration redirect
-- Custom app tab icon and title
+Core API routes:
 
-## Security Notes
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout` (auth required)
+- `GET /api/auth/me` (auth required)
+- `GET /api/auth/kdf-salt` (auth required)
+- `GET|POST|PUT|DELETE /api/vault...` (auth required)
 
-- Master password is never sent to the backend
-- Derived encryption key is kept in memory only
-- Clipboard copy auto-clears after a short timeout in the UI
+## Development Commands
 
-## Development Notes
+Backend:
 
-- If cookie/session behavior is inconsistent in local dev, verify backend `SESSION_DOMAIN` and CORS settings.
-- For auth calls from the frontend, keep `withCredentials` enabled where required.
+```bash
+cd backend
+composer run dev      # serve + queue + logs + vite (backend workspace)
+composer run test
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run dev
+npm run build
+npm run lint
+npm run preview
+```
+
+## Security Model
+
+- Master password is not sent to the backend.
+- Encryption/decryption happens in the browser.
+- Derived key is kept in memory only during unlocked session.
+- Backend stores encrypted blobs and non-sensitive metadata.
+
+## Troubleshooting
+
+- If auth/CSRF fails locally:
+	- confirm backend is running on `http://localhost:8000`
+	- confirm frontend is running on `http://localhost:5173`
+	- check `VITE_API_BASE` in `frontend/.env`
+	- verify `backend/config/cors.php` includes frontend origin
+	- run in backend:
+
+```bash
+php artisan config:clear
+php artisan cache:clear
+```
+
+## Roadmap Ideas
+
+- Password generator and strength estimator
+- Search/filter by tags and category
+- Export/import encrypted vault backup
+- Optional 2FA for account login
